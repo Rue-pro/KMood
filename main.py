@@ -19,9 +19,9 @@ CONFIG = {
 KMOOD_CONFIG = {
     "path": os.path.join(CONFIG["rootPath"], "KMood"),
     "assets": os.path.join(CONFIG["rootPath"], "KMood", "Assets"),
-    "scenario": os.path.join(CONFIG["rootPath"], "KMood", "TXT_Kai", "article.txt"),
-    "scenarioTextChanges": os.path.join(CONFIG["rootPath"], "KMood", "TXT_Kai", "changes.json"),
-    "project": os.path.join(CONFIG["rootPath"], "KMood", "TXT_Kai")
+    "scenario": os.path.join(CONFIG["rootPath"], "KMood", "NewJeans_Hanni", "article.txt"),
+    "scenarioTextChanges": os.path.join(CONFIG["rootPath"], "KMood", "NewJeans_Hanni", "changes.json"),
+    "project": os.path.join(CONFIG["rootPath"], "KMood", "NewJeans_Hanni")
 }
 
 REDDIT_CONFIG = {
@@ -32,12 +32,12 @@ REDDIT_CONFIG = {
 
 
 def renameFiles():
-    path = 'C:/Dev/YouTube Automation/SmoothAI/Image Sequence'
+    path = 'C:/Dev/YouTube Automation/KMood/NewJeans_Hanni/Speech/Audios'
 
     files = os.listdir(path)
 
     for index, file in enumerate(files):
-        os.rename(os.path.join(path, file), os.path.join(path, file[7:]))
+        os.rename(os.path.join(path, file), os.path.join(path, file[0:100]), ".mp4")
 
 
 def moveAndRenameRecord(newName):
@@ -48,7 +48,7 @@ def moveAndRenameRecord(newName):
     for video in videos:
         if video[0:4] == "2023":
             newName = newName.replace("?", "")
-            os.rename(path + "/" + video, KMOOD_CONFIG["project"] + "/Speech/Videos/" + newName[0:187] + ".mp4")
+            os.rename(path + "/" + video, KMOOD_CONFIG["project"] + "/Speech/Videos/" + newName[0:100] + ".mp4")
 
 
 def prepareKMood():
@@ -61,7 +61,7 @@ def prepareKMood():
 
     with open(KMOOD_CONFIG["scenario"], "r") as file:
         content = file.read().replace("\n", "")
-        sentences = content.replace('"', "").replace("’", "").replace("вЂ™", "'").split(".")
+        sentences = content.replace('"', "").replace("’", "").replace("вЂ™", "").replace("Ђќ", "").split(".")
 
     obs = OBSRemote()
     speechToText = SpeechToText()
@@ -112,3 +112,4 @@ def prepareReddit():
 if __name__ == "__main__":
     redditVideoBuilder = RedditVideoBuilder()
     redditVideoBuilder.build()
+    # prepareKMood()
