@@ -361,7 +361,6 @@ class RedditVideoBuilder:
         return control_clip
 
     def _addRestPartOfComment(self, divided_comments):
-        print("Do add next page...", divided_comments)
         self.lastItemPosition = videoBorder
         divided_comments_on_current_page, divided_comments_on_next_page = self.calculateContent(divided_comments)
         comment_clip, comment_clip_duration = self._addComment(divided_comments_on_current_page)
@@ -369,40 +368,38 @@ class RedditVideoBuilder:
         page_bg = page_bg.set_duration(comment_clip_duration)
 
         if len(divided_comments_on_next_page) == 0:
-            print("Comment height is OK")
             control_clip = self._addControls()
             control_clip = control_clip.set_duration(comment_clip_duration)
             page = CompositeVideoClip([page_bg, comment_clip, control_clip])
-            page.write_videofile(
-                "rest_no_next_page_last_page_is_finished_" + divided_comments_on_current_page[0]["text"] + ".mp4",
-                fps=25)
-
             self.pages.append({
                 "comment": page,
-                "pageRows": [{
-                    "type": "comment",
-                    "source": comment_clip
-                }, {
-                    "type": "control",
-                    "source": control_clip
-                }],
                 "finished": False,
             })
         else:
-            print("Comment height is NOT OK, do divide")
             page = CompositeVideoClip([page_bg, comment_clip])
-            page.write_videofile(
-                "rest_have_next_page_last_page_is_finished_" + divided_comments_on_current_page[0]["text"] + ".mp4",
-                fps=25)
             self.pages.append({
                 "comment": page,
-                "pageRows": [{
-                    "type": "comment",
-                    "source": comment_clip
-                }],
                 "finished": True
             })
             self._addRestPartOfComment(divided_comments_on_next_page)
+
+    def _getPageBg(self, duration):
+        isLastPageHaveSomeSpace = self._getIsPageHaveSomeSpace()
+
+        if isLastPageHaveSomeSpace:
+            lastComment = self.pages[len(self.pages) - 1]["comment"]
+            prevVideoLastFrame = lastComment.subclip([0, -1])
+            bg_page_frames = []
+            for sec in range(duration):
+                bg_page_frames.append(prevVideoLastFrame)
+            return concatenate_videoclips(bg_page_frames)
+        else:
+            page_bg = createPage()
+            return page_bg.set_duration(duration)
+
+    def _getIsPageHaveSomeSpace(self):
+        lastPage = self._getLastPage()
+        return lastPage is not None and not lastPage["finished"]
 
     def _addNewComment(self, _page, comment_data):
         [author_clip, timestamp_clip] = self._addAuthorAndTimeStamp(
@@ -411,146 +408,30 @@ class RedditVideoBuilder:
         )
         divided_comments_on_current_page, divided_comments_on_next_page = self.calculateContent(
             comment_data["contentArr"])  # get current page sentences
+
         comment_clip, comment_clip_duration = self._addComment(divided_comments_on_current_page)
         author_clip = author_clip.set_duration(comment_clip_duration)
         timestamp_clip = timestamp_clip.set_duration(comment_clip_duration)
 
-        lastPage = self._getLastPage()
+        page_bg = self._getPageBg(comment_clip_duration)
 
         if len(divided_comments_on_next_page) == 0:
-            print("Comment height is OK, finish comment")
             control_clip = self._addControls()
             control_clip = control_clip.set_duration(comment_clip_duration)
-
-            if lastPage is not None and lastPage["finished"] == False:
-                print("No next page, last page is not finished")
-
-                lastComment = self.pages[len(self.pages) - 1]["comment"]
-                prevVideoLastFrame = lastComment.subclip([0, -1])
-                bg_page = []
-                for duration in range(comment_clip_duration):
-                    bg_page.append(prevVideoLastFrame)
-                bg_page = concatenate_videoclips(bg_page)
-                page = CompositeVideoClip([bg_page, author_clip, timestamp_clip, comment_clip, control_clip])
-                page.write_videofile(
-                    "no_next_page_last_page_is_not_finished_" + divided_comments_on_current_page[0]["text"] + ".mp4",
-                    fps=25)
-
-                newPageRows = self.pages[len(self.pages) - 1]["pageRows"]
-                newPageRows.append({
-                    "type": "author",
-                    "source": author_clip
-                })
-                newPageRows.append({
-                    "type": "timestamp",
-                    "source": timestamp_clip
-                })
-                newPageRows.append({
-                    "type": "comment",
-                    "source": comment_clip
-                })
-                newPageRows.append({
-                    "type": "control",
-                    "source": control_clip
-                })
-
-                self.pages[len(self.pages) - 1] = {
-                    "sentence": divided_comments_on_current_page[0]["text"],
-                    "comment": page,
-                    "pageRows": newPageRows,
-                    "finished": False
-                }
-            else:
-                print("No next page, last page is finished")
-                page_bg = createPage()
-                page_bg = page_bg.set_duration(comment_clip_duration)
-
-                page = CompositeVideoClip([page_bg, author_clip, timestamp_clip, comment_clip, control_clip])
-                page.write_videofile(
-                    "no_next_page_last_page_is_finished_" + divided_comments_on_current_page[0]["text"] + ".mp4",
-                    fps=25)
-
-                self.pages.append({
-                    "sentence": divided_comments_on_current_page[0]["text"],
-                    "comment": page,
-                    "pageRows": [{
-                        "type": "author",
-                        "source": author_clip
-                    }, {
-                        "type": "timestamp",
-                        "source": timestamp_clip
-                    }, {
-                        "type": "comment",
-                        "source": comment_clip
-                    }, {
-                        "type": "control",
-                        "source": control_clip
-                    }],
-                    "finished": False
-                })
+            page = CompositeVideoClip([page_bg, author_clip, timestamp_clip, comment_clip, control_clip])
+            self.pages.append({
+                "sentence": divided_comments_on_current_page[0]["text"],
+                "comment": page,
+                "finished": False
+            })
         else:
             print("Comment height is NOT OK, do divide")
-            if lastPage is not None and lastPage["finished"] == False:
-                print("Have next page, last page is not finished")
-
-                lastComment = self.pages[len(self.pages) - 1]["comment"]
-                prevVideoLastFrame = lastComment.subclip([0, -1])
-                bg_page = []
-                for duration in range(comment_clip_duration):
-                    bg_page.append(prevVideoLastFrame)
-                bg_page = concatenate_videoclips(bg_page)
-                page = CompositeVideoClip([bg_page, author_clip, timestamp_clip, comment_clip])
-                page.write_videofile(
-                    "have_next_page_last_page_is_not_finished_" + divided_comments_on_current_page[0]["text"] + ".mp4",
-                    fps=25)
-
-                newPageRows = self.pages[len(self.pages) - 1]["pageRows"]
-
-                newPageRows.append({
-                    "type": "author",
-                    "source": author_clip
-                })
-                newPageRows.append({
-                    "type": "timestamp",
-                    "source": timestamp_clip
-                })
-                newPageRows.append({
-                    "type": "comment",
-                    "source": comment_clip
-                })
-
-                self.pages[len(self.pages) - 1] = {
-                    "sentence": divided_comments_on_current_page[0]["text"],
-                    "comment": page,
-                    "pageRows": newPageRows,
-                    "finished": True
-                }
-            else:
-                print("Have next page, last page is finished")
-
-                page_bg = createPage()
-                page_bg = page_bg.set_duration(comment_clip_duration)
-
-                page = CompositeVideoClip([page_bg, author_clip, timestamp_clip, comment_clip])
-                page.write_videofile(
-                    "have_next_page_last_page_is_finished_" + divided_comments_on_current_page[0]["text"] + ".mp4",
-                    fps=25)
-
-                self.pages.append({
-                    "sentence": divided_comments_on_current_page[0]["text"],
-                    "comment": page,
-                    "pageRows": [{
-                        "type": "author",
-                        "source": author_clip
-                    }, {
-                        "type": "timestamp",
-                        "source": timestamp_clip
-                    }, {
-                        "type": "comment",
-                        "source": comment_clip
-                    }],
-                    "finished": True
-                })
+            page = CompositeVideoClip([page_bg, author_clip, timestamp_clip, comment_clip])
+            self.pages.append({
+                "sentence": divided_comments_on_current_page[0]["text"],
+                "comment": page,
+                "finished": True
+            })
 
             self._addRestPartOfComment(divided_comments_on_next_page)
 
@@ -561,60 +442,10 @@ class RedditVideoBuilder:
         for comment_data in comment_data["replies"]:
             self._addNewComment(page, comment_data)
 
-        filesToConcatenate = []
-
         print("self.pages", self.pages)
-        filesToConcatenateTest = []
+        filesToConcatenate = []
         for comment_page_index, comment_page in enumerate(self.pages):
-            print("comment_page", comment_page)
-            filesToConcatenateTest.append(comment_page["comment"])
-
-            page_bg = createPage()
-            filesToComposite = []
-            page_duration = 0
-            for comment_page_row_index, row in enumerate(comment_page["pageRows"]):
-                print("comment_page_row_index", comment_page_row_index)
-                print("row", row)
-                source = row["source"]
-                if comment_page_row_index == 0:
-                    filesToComposite.append(source)
-                else:
-                    if row["type"] == "author":
-                        page_bg = page_bg.set_duration(page_duration)
-                        filesToComposite.insert(0, page_bg)
-                        print("filesToComposite create videofile", filesToComposite)
-                        if len(filesToConcatenate) != 0:
-                            prevVideo = filesToConcatenate[len(filesToConcatenate) - 1]
-                            prevVideoLastFrame = prevVideo.subclip([0, -1])
-                            for dur in range(page_duration):
-                                filesToComposite.insert(0, prevVideoLastFrame)
-                        test = CompositeVideoClip(filesToComposite)
-                        test.write_videofile(
-                            "test_" + str(comment_page_index) + "_" + str(comment_page_row_index) + "_.mp4", fps=25)
-                        filesToConcatenate.append(test)
-                        page_duration = 0
-                        filesToComposite = []
-                    filesToComposite.append(source)
-
-                if row["type"] == "comment":
-                    page_duration += source.duration
-
-            page_bg = page_bg.set_duration(page_duration)
-            filesToComposite.insert(0, page_bg)
-            if comment_page["finished"] == False and len(filesToConcatenate) != 0:
-                prevVideo = filesToConcatenate[len(filesToConcatenate) - 1]
-                prevVideoLastFrame = prevVideo.subclip([0, -1])
-                for dur in range(page_duration):
-                    filesToComposite.insert(0, prevVideoLastFrame)
-            test = CompositeVideoClip(filesToComposite)
-            test.write_videofile("test_" + str(comment_page_index) + "_" + str(comment_page_row_index) + "_.mp4",
-                                 fps=25)
-            filesToConcatenate.append(test)
-
-        print("filesToConcatenate", filesToConcatenate)
+            filesToConcatenate.append(comment_page["comment"])
 
         final = concatenate_videoclips(filesToConcatenate)
         final.write_videofile("redditVideoBuilder.mp4", fps=25)
-
-        finalTest = concatenate_videoclips(filesToConcatenateTest)
-        finalTest.write_videofile("redditVideoBuilderTest.mp4", fps=25)
