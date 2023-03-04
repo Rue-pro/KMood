@@ -202,43 +202,57 @@ data = [
     },
 ];
 
+projectPath = "C:\Dev\YouTube Automation\KMood\TXT_Kai\Speech\Audios\Cropped\\"
+
 videoBorder = 50
 videoWidth = 1920
 videoHeight = 1080
 videoViewportWidth = videoWidth - videoBorder * 2
 videoViewportHeight = videoHeight - videoBorder * 2
 
-comments_gap = 32
+comments_gap = 16 * 3
 comment_margin_top = 16
 controls_margin_top = 16
+divider_width = 4
+dividers_gap = 8 * 2
+
+
+def getLevel(level):
+    print("level: ", int(level[6: len(level)]))
+    return int(level[6: len(level)])
 
 
 def createPage():
     return ColorClip((videoWidth, videoHeight), (255, 255, 255), duration=1)
 
 
+def createDivider(height):
+    return ColorClip((divider_width, height + 10), (237, 239, 241), duration=1)
+
+
 def createAuthor(author, margin_top):
-    author_clip = TextClip(author, fontsize=30, font="IBM Plex Sans-Bold", color='rgb(124, 124, 124)')
+    author_clip = TextClip(author, fontsize=30, font="IBM Plex Sans-Bold", color='rgb(26, 26, 27)')
     return author_clip, author_clip.size[1] + margin_top
 
 
 def createTimestamp(timestamp, margin_top):
-    timestamp_clip = TextClip(timestamp, fontsize=30, font="Noto Sans", color='rgb(124, 124, 124)')
+    timestamp_clip = TextClip(timestamp, fontsize=30, font="Noto Sans", color='rgb(116, 117, 118)')
     return timestamp_clip, timestamp_clip.size[1] + margin_top
 
 
-def createComment(commentDivided, last_comment_index, margin_top):
+def createComment(commentDivided, last_comment_index, margin_top, margin_left):
+    print("create comment margin left: ", margin_left)
     sentences = ""
     for sentence in commentDivided[0:last_comment_index]:
         sentences += sentence["text"]
 
-    comment_clip = TextClip(sentences, size=(videoWidth - videoBorder * 2, None), fontsize=60,
-                            font="IBM Plex Sans", color='rgb(124, 124, 124)', method="caption", align="West")
+    comment_clip = TextClip(sentences, size=(videoWidth - margin_left - videoBorder, None), fontsize=38,
+                            font="IBM Plex Sans", color='rgb(26, 26, 26)', method="caption", align="West")
     return comment_clip, comment_clip.size[1] + margin_top
 
 
 def createControl(control, margin_top):
-    control_clip = TextClip(control, fontsize=30, font="IBM Plex Sans-Bold", color='rgb(124, 124, 124)')
+    control_clip = TextClip(control, fontsize=30, font="IBM Plex Sans-Bold", color='rgb(135, 138, 140)')
     return control_clip, control_clip.size[1] + margin_top
 
 
@@ -270,11 +284,19 @@ class RedditVideoBuilder:
             lastPage = self.pages[len(self.pages) - 1]
         return lastPage
 
-    def calculateContent(self, commentDivided, is_continuing=False):
+    def _getContainerMarginTop(self):
+        isLastPageHaveSomeSpace = self._getIsPageHaveSomeSpace()
+        if isLastPageHaveSomeSpace:
+            return comments_gap
+        else:
+            return 0
+
+    def calculateContent(self, commentDivided, comment_left_margin):
         print("Do calculate content...")
-        author_clip, comment_height_author = createAuthor("Test Author", self.lastItemPosition)
-        if is_continuing:
-            comment_height_author = self.lastItemPosition
+        print(self.pages)
+        container_margin_top = self.lastItemPosition + self._getContainerMarginTop()
+        author_clip, comment_height_author = createAuthor("Test Author", container_margin_top)
+
         comment_height_author += comment_margin_top  # add margin between author and comment
 
         control_clip, comment_height_author_plus_control = createControl(
@@ -285,11 +307,14 @@ class RedditVideoBuilder:
         comment_clip, comment_height_author_plus_comment_plus_control = createComment(
             commentDivided,
             last_comment_index=len(commentDivided),
-            margin_top=comment_height_author_plus_control
+            margin_top=comment_height_author_plus_control,
+            margin_left=comment_left_margin
         )
-
+        print("sentence: ", commentDivided[0])
+        print("comment_height_author: ", comment_height_author)
+        print("comment_height_author_plus_comment_plus_control before cycle: ", comment_height_author_plus_comment_plus_control)
         if comment_height_author > videoViewportHeight:
-            return commentDivided, []
+            return [], commentDivided
 
         last_sentence = 1
         if comment_height_author_plus_comment_plus_control > videoViewportHeight:
@@ -297,8 +322,10 @@ class RedditVideoBuilder:
                 comment_clip, comment_height_author_plus_comment_plus_control = createComment(
                     commentDivided,
                     last_comment_index=last_sentence,
-                    margin_top=comment_height_author_plus_control
+                    margin_top=comment_height_author_plus_control,
+                    margin_left=comment_left_margin
                 )
+                print("comment_height_author_plus_comment_plus_control in cycle", comment_height_author_plus_comment_plus_control)
                 if comment_height_author_plus_comment_plus_control > videoViewportHeight:
                     break
                 else:
@@ -314,29 +341,33 @@ class RedditVideoBuilder:
 
         return divided_comments_on_current_page, divided_comments_on_next_page
 
-    def _addAuthorAndTimeStamp(self, author, timestamp):
-        gap = videoBorder
+    def _addAuthorAndTimeStamp(self, author, timestamp, comment_left_margin):
+        gap = comment_left_margin
+        container_margin_top = self.lastItemPosition + self._getContainerMarginTop()
+        print("self.lastItemPosition before author", self.lastItemPosition)
+        author_clip, comment_height_author = createAuthor(author, container_margin_top)
 
-        author_clip, comment_height_author = createAuthor(author, self.lastItemPosition)
-        author_clip = author_clip.set_position((gap, self.lastItemPosition))
+        author_clip = author_clip.set_position((gap, container_margin_top))
 
         gap += author_clip.size[0] + 16
 
-        timestamp_clip, comment_height_timestamp = createTimestamp(timestamp, self.lastItemPosition)
-        timestamp_clip = timestamp_clip.set_position((gap, self.lastItemPosition))
+        timestamp_clip, comment_height_timestamp = createTimestamp(timestamp, container_margin_top)
+        timestamp_clip = timestamp_clip.set_position((gap, container_margin_top))
 
-        self.lastItemPosition += author_clip.size[1]
+        self.lastItemPosition = container_margin_top + author_clip.size[1]
+        print("self.lastItemPosition after author", self.lastItemPosition)
 
-        return author_clip, timestamp_clip
+        return author_clip, timestamp_clip, container_margin_top
 
-    def _addComment(self, commentDivided):
+    def _addComment(self, commentDivided, comment_left_margin):
         final_duration = 0
         comment_clips = []
         for index, sentence in enumerate(commentDivided):
             comment_clip, comment_height_author_plus_comment = createComment(
                 commentDivided,
                 last_comment_index=index + 1,
-                margin_top=0
+                margin_top=0,
+                margin_left=comment_left_margin
             )
             duration = getSecondsFromTime(sentence["duration"])
             final_duration += duration
@@ -344,44 +375,72 @@ class RedditVideoBuilder:
             comment_clips.append(comment_clip)
 
         final_clip = concatenate_videoclips(comment_clips)
-        final_clip = final_clip.set_position((videoBorder, self.lastItemPosition + comment_margin_top))
-        print("final_clip.duration", final_clip.duration)
-        print("calculated duration, final_duration")
+        final_clip = final_clip.set_position((comment_left_margin, self.lastItemPosition + comment_margin_top))
+        final_clip.audio = self._addAudio(commentDivided)
+
         self.lastItemPosition += comment_clip.size[1]
 
         return final_clip, final_duration
 
-    def _addControls(self):
+    def _addAudio(self, commentDivided):
+        audio_clips = []
+        for index, sentence in enumerate(commentDivided):
+            audio_clip = AudioFileClip(projectPath + sentence["record"] + ".mp3")
+            audio_clip = audio_clip.subclip(0, -2)
+            audio_clips.append(audio_clip)
+        final = concatenate_audioclips(audio_clips)
+        return final
+
+    def _addControls(self, comment_left_margin):
         control_clip, control_height = createControl("Reply", margin_top=0)
-        control_clip = control_clip.set_position((videoBorder, self.lastItemPosition + controls_margin_top))
+        control_clip = control_clip.set_position((comment_left_margin, self.lastItemPosition + controls_margin_top))
+        print("self.lastItemPosition before control", self.lastItemPosition)
 
         self.lastItemPosition += control_clip.size[1]
-        print("lastItemPosition controls", self.lastItemPosition)
+        print("self.lastItemPosition after control", self.lastItemPosition)
 
         return control_clip
 
-    def _addRestPartOfComment(self, divided_comments):
+    def _addDivider(self, height):
+        return createDivider(height)
+
+    def _addRestPartOfComment(self, divided_comments, comment_left_margin):
         self.lastItemPosition = videoBorder
-        divided_comments_on_current_page, divided_comments_on_next_page = self.calculateContent(divided_comments)
-        comment_clip, comment_clip_duration = self._addComment(divided_comments_on_current_page)
+        divider_top_position = self.lastItemPosition
+        divided_comments_on_current_page, divided_comments_on_next_page = self.calculateContent(divided_comments, comment_left_margin)
+        if len(divided_comments_on_current_page) == 0:
+            self._addRestPartOfComment(divided_comments_on_next_page, comment_left_margin)
+            return
+
+        comment_clip, comment_clip_duration = self._addComment(divided_comments_on_current_page, comment_left_margin)
+
         page_bg = createPage()
         page_bg = page_bg.set_duration(comment_clip_duration)
 
         if len(divided_comments_on_next_page) == 0:
-            control_clip = self._addControls()
+            control_clip = self._addControls(comment_left_margin)
             control_clip = control_clip.set_duration(comment_clip_duration)
-            page = CompositeVideoClip([page_bg, comment_clip, control_clip])
+
+            divider_height = self.lastItemPosition - divider_top_position
+            divider_clip = self._addDivider(divider_height).set_duration(comment_clip_duration)
+            divider_clip = divider_clip.set_position((comment_left_margin - divider_width - dividers_gap, divider_top_position))
+
+            page = CompositeVideoClip([page_bg, divider_clip, comment_clip, control_clip])
             self.pages.append({
                 "comment": page,
                 "finished": False,
             })
         else:
-            page = CompositeVideoClip([page_bg, comment_clip])
+            divider_height = self.lastItemPosition - divider_top_position
+            divider_clip = self._addDivider(divider_height).set_duration(comment_clip_duration)
+            divider_clip = divider_clip.set_position((comment_left_margin - divider_width - dividers_gap, divider_top_position))
+
+            page = CompositeVideoClip([page_bg, divider_clip, comment_clip])
             self.pages.append({
                 "comment": page,
                 "finished": True
             })
-            self._addRestPartOfComment(divided_comments_on_next_page)
+            self._addRestPartOfComment(divided_comments_on_next_page, comment_left_margin)
 
     def _getPageBg(self, duration):
         isLastPageHaveSomeSpace = self._getIsPageHaveSomeSpace()
@@ -402,23 +461,39 @@ class RedditVideoBuilder:
         return lastPage is not None and not lastPage["finished"]
 
     def _addNewComment(self, _page, comment_data):
-        [author_clip, timestamp_clip] = self._addAuthorAndTimeStamp(
-            comment_data["author"],
-            comment_data["timestamp"]
-        )
-        divided_comments_on_current_page, divided_comments_on_next_page = self.calculateContent(
-            comment_data["contentArr"])  # get current page sentences
 
-        comment_clip, comment_clip_duration = self._addComment(divided_comments_on_current_page)
+        level = getLevel(comment_data["level"])
+        comment_left_margin = videoBorder + level * divider_width + level * dividers_gap
+        print("calculated comment left margin", comment_left_margin)
+        [author_clip, timestamp_clip, container_margin_top] = self._addAuthorAndTimeStamp(
+            comment_data["author"],
+            comment_data["timestamp"],
+            comment_left_margin
+        )
+        divider_top_position = container_margin_top
+
+        divided_comments_on_current_page, divided_comments_on_next_page = self.calculateContent(
+            comment_data["contentArr"], comment_left_margin)  # get current page sentences
+
+        if len(divided_comments_on_current_page) == 0:
+            self._addRestPartOfComment(divided_comments_on_next_page, comment_left_margin)
+            return
+
+        comment_clip, comment_clip_duration = self._addComment(divided_comments_on_current_page, comment_left_margin)
         author_clip = author_clip.set_duration(comment_clip_duration)
         timestamp_clip = timestamp_clip.set_duration(comment_clip_duration)
 
         page_bg = self._getPageBg(comment_clip_duration)
 
         if len(divided_comments_on_next_page) == 0:
-            control_clip = self._addControls()
+            control_clip = self._addControls(comment_left_margin)
             control_clip = control_clip.set_duration(comment_clip_duration)
-            page = CompositeVideoClip([page_bg, author_clip, timestamp_clip, comment_clip, control_clip])
+
+            divider_height = self.lastItemPosition - divider_top_position
+            divider_clip = self._addDivider(divider_height).set_duration(comment_clip_duration)
+            divider_clip = divider_clip.set_position((comment_left_margin - divider_width - dividers_gap, divider_top_position))
+
+            page = CompositeVideoClip([page_bg, divider_clip, author_clip, timestamp_clip, comment_clip, control_clip])
             self.pages.append({
                 "sentence": divided_comments_on_current_page[0]["text"],
                 "comment": page,
@@ -426,14 +501,18 @@ class RedditVideoBuilder:
             })
         else:
             print("Comment height is NOT OK, do divide")
-            page = CompositeVideoClip([page_bg, author_clip, timestamp_clip, comment_clip])
+            divider_height = self.lastItemPosition - divider_top_position
+            divider_clip = self._addDivider(divider_height).set_duration(comment_clip_duration)
+            divider_clip = divider_clip.set_position((comment_left_margin - divider_width - dividers_gap, divider_top_position))
+
+            page = CompositeVideoClip([page_bg, divider_clip, author_clip, timestamp_clip, comment_clip])
             self.pages.append({
                 "sentence": divided_comments_on_current_page[0]["text"],
                 "comment": page,
                 "finished": True
             })
 
-            self._addRestPartOfComment(divided_comments_on_next_page)
+            self._addRestPartOfComment(divided_comments_on_next_page, comment_left_margin)
 
     def build(self):
         comment_data = data[0]
@@ -448,4 +527,4 @@ class RedditVideoBuilder:
             filesToConcatenate.append(comment_page["comment"])
 
         final = concatenate_videoclips(filesToConcatenate)
-        final.write_videofile("redditVideoBuilder.mp4", fps=25)
+        final.write_videofile("redditVideoBuilder.mp4", fps=10)
