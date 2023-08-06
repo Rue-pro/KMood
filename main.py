@@ -1,115 +1,70 @@
-import logging
-import time
 import json
 import os
 
-from obs import OBSRemote
-from speechToText import SpeechToText
-from videoBuilder import VideoBuilder
-from redditParser import RedditParser
-from redditVideoBuilder import RedditVideoBuilder
+from generateArticleConfig import generate_article_config
+from makeAudio import make_audio
 
-logging.basicConfig(level=logging.INFO)
-
-CONFIG = {
-    "rootPath": "C:/Dev/YouTube Automation/",
-    "recordedVideos": "C:/Users/Alina/Videos",
-}
-
-KMOOD_CONFIG = {
-    "path": os.path.join(CONFIG["rootPath"], "KMood"),
-    "assets": os.path.join(CONFIG["rootPath"], "KMood", "Assets"),
-    "scenario": os.path.join(CONFIG["rootPath"], "KMood", "NewJeans_Hanni", "article.txt"),
-    "scenarioTextChanges": os.path.join(CONFIG["rootPath"], "KMood", "NewJeans_Hanni", "changes.json"),
-    "project": os.path.join(CONFIG["rootPath"], "KMood", "NewJeans_Hanni")
-}
-
-REDDIT_CONFIG = {
-    "path": os.path.join(CONFIG["rootPath"], "Reddit"),
-    "project": os.path.join(CONFIG["rootPath"], "Reddit", "what_do_you_enjoy_more_the_older_you_get"),
-    "urlToParse": "/110qy0d/what_do_you_enjoy_more_the_older_you_get/"
-}
+KMOOD_PROJECT = "C:/Dev/YouTubeAutomation/KMood/ATEEZ_Yunho"
+KMOOD_PROJECT_AUDIOS_PATH = os.path.join(KMOOD_PROJECT, "audios")
+KMOOD_PROJECT_ARTICLE = os.path.join(KMOOD_PROJECT, "article.txt")
+KMOOD_PROJECT_ARTICLE_CHANGES = os.path.join(KMOOD_PROJECT, "article_changes.json")
+KMOOD_PROJECT_ARTICLE_CONFIG_PATH = os.path.join(KMOOD_PROJECT, "article_config.json")
 
 
-def renameFiles():
-    path = 'C:/Dev/YouTube Automation/KMood/NewJeans_Hanni/Speech/Audios'
+def prepare_project():
+    print("Prepare project...")
+    isExist = os.path.exists(KMOOD_PROJECT)
+    if isExist:
+        print("KMOOD_PROJECT is already existing!")
+    else:
+        os.makedirs(KMOOD_PROJECT_AUDIOS_PATH)
+        print("KMOOD_PROJECT is created!")
 
-    files = os.listdir(path)
+    isExist = os.path.exists(KMOOD_PROJECT_AUDIOS_PATH)
+    if isExist:
+        print("KMOOD_PROJECT_AUDIOS_PATH is already existing!")
+    else:
+        os.makedirs(KMOOD_PROJECT_AUDIOS_PATH)
+        print("KMOOD_PROJECT_AUDIOS_PATH is created!")
 
-    for index, file in enumerate(files):
-        os.rename(os.path.join(path, file), os.path.join(path, file[0:100]), ".mp4")
+    isExist = os.path.isfile(KMOOD_PROJECT_ARTICLE)
+    if isExist:
+        print("KMOOD_PROJECT_ARTICLE is exist!")
+    else:
+        raise Exception("KMOOD_PROJECT_ARTICLE not exist! Given path: " + KMOOD_PROJECT_ARTICLE)
 
-
-def moveAndRenameRecord(newName):
-    path = CONFIG["recordedVideos"]
-
-    videos = os.listdir(path)
-
-    for video in videos:
-        if video[0:4] == "2023":
-            newName = newName.replace("?", "")
-            os.rename(path + "/" + video, KMOOD_CONFIG["project"] + "/Speech/Videos/" + newName[0:100] + ".mp4")
-
-
-def prepareKMood():
-    print("Prepare content for KMood project...")
-
-    CHANGES_FILE = open(KMOOD_CONFIG["scenarioTextChanges"])
-    CHANGES = json.load(CHANGES_FILE)
-
-    videoBuilder = VideoBuilder(KMOOD_CONFIG["assets"], KMOOD_CONFIG["project"])
-
-    with open(KMOOD_CONFIG["scenario"], "r") as file:
-        content = file.read().replace("\n", "")
-        sentences = content.replace('"', "").replace("’", "").replace("вЂ™", "").replace("Ђќ", "").split(".")
-
-    obs = OBSRemote()
-    speechToText = SpeechToText()
-    speechToText.checkCaptcha()
-
-    for index, _sentence in enumerate(sentences):
-        sentence = _sentence
-        for word in CHANGES:
-            sentence = sentence.replace(word, CHANGES[word])
-
-        time.sleep(3)
-        if sentence:
-            print("SENTENCE", sentence)
-            speechToText.preRecord(sentence)
-            try:
-                print("DO RECORD")
-
-                obs.disableMic()
-                obs.startRecording()
-                speechToText.doPlayRecorded()
-            except KeyboardInterrupt:
-                pass
-
-            print("STOP RECORD")
-            obs.stopRecording()
-            obs.enableMic()
-
-            time.sleep(3)
-            moveAndRenameRecord(str(index) + "." + _sentence)
-
-    obs.disconnect()
-    speechToText.disconnect()
-
-    videoBuilder.convertVideosToAudios()
-    videoBuilder.cropAudios()
-    print("Content prepared for KMood project...")
+    isExist = os.path.isfile(KMOOD_PROJECT_ARTICLE_CHANGES)
+    if isExist:
+        print("KMOOD_PROJECT_ARTICLE_CHANGES is exist!")
+    else:
+        raise Exception("KMOOD_PROJECT_ARTICLE_CHANGES not exist! Given path: " + KMOOD_PROJECT_ARTICLE_CHANGES)
 
 
-def prepareReddit():
-    print("Prepare content for Reddit project...")
-    if not os.path.isdir(REDDIT_CONFIG['project']):
-        os.makedirs(REDDIT_CONFIG['project'])
+def get_article_changes():
+    print("Uploading article changes from config file...")
 
-    redditParser = RedditParser(REDDIT_CONFIG['project'], REDDIT_CONFIG["urlToParse"])
-    print("Content prepared for Reddit project...")
+    with open(KMOOD_PROJECT_ARTICLE_CHANGES, "r") as file:
+        article_changes = json.loads(file.read())
+        file.close()
+        return article_changes
 
 
 if __name__ == "__main__":
-    redditVideoBuilder = RedditVideoBuilder()
-    redditVideoBuilder.build()
-    # prepareKMood()
+    do_make_audio = True
+
+    prepare_project()
+
+    if do_make_audio is True:
+        make_audio(article_config_path=KMOOD_PROJECT_ARTICLE_CONFIG_PATH, audios_path=KMOOD_PROJECT_AUDIOS_PATH)
+        exit()
+
+    article_changes = get_article_changes()
+
+    generate_article_config(article_path=KMOOD_PROJECT_ARTICLE, map_word_to_change_word={
+        "Jeong": "<sub alias='Jon'>JJJ</sub>",
+        "Yunho": "<sub alias='Yuno'>YYY</sub>",
+        "Yunho's": "<sub alias='Yuno's'>YYY</sub>",
+        "ATEEZ": "<sub alias='ateez'>AAA</sub>",
+        }, article_config_path=KMOOD_PROJECT_ARTICLE_CONFIG_PATH)
+
+    print("Article config generated successfully, check it out and start generating audios from this config!")
