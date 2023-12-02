@@ -1,7 +1,7 @@
 import json
 import os
 
-from generateArticleConfig import generate_article_config
+from generateArticleConfig import generate_article_config, fix_article_config
 from makeAudio import make_audio
 
 KMOOD_PROJECT = "C:/Dev/YouTubeAutomation/KMood/ATEEZ_Yunho"
@@ -50,7 +50,8 @@ def get_article_changes():
 
 
 if __name__ == "__main__":
-    do_make_audio = True
+    do_config_fix = False
+    do_make_audio = not do_config_fix & True
 
     prepare_project()
 
@@ -60,11 +61,11 @@ if __name__ == "__main__":
 
     article_changes = get_article_changes()
 
-    generate_article_config(article_path=KMOOD_PROJECT_ARTICLE, map_word_to_change_word={
-        "Jeong": "<sub alias='Jon'>JJJ</sub>",
-        "Yunho": "<sub alias='Yuno'>YYY</sub>",
-        "Yunho's": "<sub alias='Yuno's'>YYY</sub>",
-        "ATEEZ": "<sub alias='ateez'>AAA</sub>",
-        }, article_config_path=KMOOD_PROJECT_ARTICLE_CONFIG_PATH)
+    if do_config_fix:
+        fix_article_config(article_path=KMOOD_PROJECT_ARTICLE, map_word_to_change_word=article_changes,
+                           article_config_path=KMOOD_PROJECT_ARTICLE_CONFIG_PATH)
+    else:
+        generate_article_config(article_path=KMOOD_PROJECT_ARTICLE, map_word_to_change_word=article_changes,
+                                article_config_path=KMOOD_PROJECT_ARTICLE_CONFIG_PATH)
 
     print("Article config generated successfully, check it out and start generating audios from this config!")

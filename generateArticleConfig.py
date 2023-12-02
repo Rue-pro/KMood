@@ -14,6 +14,17 @@ def generate_article_config(article_path, map_word_to_change_word, article_confi
     save_article_config(article_config=article_config, article_config_path=article_config_path)
 
 
+def fix_article_config(article_path, map_word_to_change_word, article_config_path):
+    print("Fixing article config...")
+
+    article = _get_article_from_file(article_path=article_path)
+    article_without_unnecessary_chars = _remove_unnecessary_chars_from_article(article)
+    article_with_readable_words = _replace_words_to_readable_words(article_without_unnecessary_chars, map_word_to_change_word)
+    article_sentences = _create_sentences_arr_from_article(article_with_readable_words)
+    article_config = _fix_article_config(article_sentences, article_config_path=article_config_path)
+    save_article_config(article_config=article_config, article_config_path=article_config_path)
+
+
 def get_article_config_from_file(article_config_path):
     print("Uploading article from config file...")
 
@@ -90,6 +101,26 @@ def _create_article_config(article_sentences):
             "text": sentence,
             "record": None,
         })
+
+    return article_config
+
+
+def _fix_article_config(article_sentences, article_config_path):
+    print("Creating article config...")
+
+    print("Uploading article config from file...")
+
+    with open(article_config_path, "r") as file:
+        article_config = json.loads(file.read())
+        file.close()
+
+    for configIndex, config in enumerate(article_config):
+        if config['record'] is None:
+            sentence = article_sentences[configIndex]
+            article_config[configIndex] = {
+                "text": sentence,
+                "record": config["record"],
+            }
 
     return article_config
 
